@@ -1,0 +1,18 @@
+[Unit]
+Description=Proton VPN Rust cli daemon
+ConditionPathExists={{ bin }}
+Before=network.target
+After=network-pre.target
+
+[Service]
+Type=simple
+User={{ user }}
+Group={{ group }}
+ExecStart={{ bin }} service start --daemon --verbose
+RemainAfterExit=true
+Restart=on-failure
+RestartSec=10
+startLimitIntervalSec=60
+
+[Install]
+WantedBy=multi-user.target

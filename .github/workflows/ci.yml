@@ -1,0 +1,69 @@
+name: "Continuous Integration"
+on:
+  pull_request:
+    branches:
+    - main
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'templates/**'
+      - 'tests/**'
+      - 'nix/**'
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          extra-conf: |
+            extra-experimental-features = nix-command flakes
+
+      - name: Set up cache
+        uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Install tools
+        run: |
+          flake='github:nixos/nixpkgs/e913ae340076bbb73d9f4d3d065c2bca7caafb16'
+          nix profile install "${flake}#statix"
+          nix profile install "${flake}#deadnix"
+          nix profile install "${flake}#jq"
+          nix profile install "${flake}#nixfmt"
+  
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run statix
+        run: |
+          statix check ./nix --format json |\
+            jq --raw-output '.file as $file | .report[] | .severity as $severity | .diagnostics[] | "::warning file=\($file),line=\(.at.from.line),col=\(.at.from.column)::\(.message)"'
+
+      - name: Run deadnix
+        run: |
+          deadnix ./nix --no-lambda-arg --output-format json |\
+            jq --raw-output '.file as $file | .results[] | "::warning file=\($file),line=\(.line),col=\(.column)::\(.message)"'
+      - name: Enter dev shell
+        run: nix develop ./nix
+      - name: Check formatting
+        run: |
+          cargo fmt --all -- --check
+          nixfmt -cv ./nix/*.nix 
+      - name: Run clippy
+        run: cargo clippy -- -D warnings
+      - name: Verify 
+        run: |
+          cargo test
+          nix flake check ./nix
