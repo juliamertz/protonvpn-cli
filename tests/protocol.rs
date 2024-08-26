@@ -15,6 +15,11 @@ fn test_request_deserialize() -> Result<()> {
     let request = Request::deserialize("connect:server1:udp")?;
     assert_eq!(request, Request::Connect("server1".into(), Protocol::Udp));
 
+    let request = Request::deserialize("killswitch:true")?;
+    assert_eq!(request, Request::Killswitch(true));
+
+    assert!(Request::deserialize("killswitch:tru").is_err());
+
     assert!(Request::deserialize("connect:server1").is_err());
 
     assert!(Request::deserialize("unknown:command").is_err());
@@ -32,6 +37,9 @@ fn test_request_serialize() -> Result<()> {
 
     let request = Request::Connect("server1".into(), Protocol::Udp);
     assert_eq!(request.serialize(), b"connect:server1:udp".to_vec());
+
+    let request = Request::Killswitch(true);
+    assert_eq!(request.serialize(), b"killswitch:true".to_vec());
 
     Ok(())
 }

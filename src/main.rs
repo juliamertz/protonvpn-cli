@@ -15,6 +15,7 @@ fn main() -> anyhow::Result<()> {
         Some(("query", args)) => cli::handle_query_subcommand(args),
         Some(("status", args)) => cli::handle_status_subcommand(args),
         Some(("config", args)) => cli::handle_config_subcommand(args),
+        Some(("killswitch", args)) => cli::handle_killswitch_subcommand(args),
         _ => unimplemented!(),
     }?;
 

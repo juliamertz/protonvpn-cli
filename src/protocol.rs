@@ -3,8 +3,6 @@ use clap::ValueEnum;
 
 use crate::client::{openvpn::Protocol, Pid};
 
-type ServerId = String;
-
 pub trait SocketProtocol {
     fn deserialize(data: &str) -> Result<Self>
     where
@@ -12,11 +10,15 @@ pub trait SocketProtocol {
     fn serialize(&self) -> Vec<u8>;
 }
 
+type ServerId = String;
+type Enable = bool;
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Request {
     Status,
     Disconnect,
     Connect(ServerId, Protocol),
+    Killswitch(Enable),
 }
 
 #[derive(Debug)]
@@ -54,7 +56,12 @@ impl SocketProtocol for Request {
                     server_id.to_string(),
                     Protocol::from_str(protocol, true).expect("valid protocol"),
                 )),
-                _ => anyhow::bail!("not enough arguments"),
+                _ => anyhow::bail!("incorrect arguments"),
+            },
+            "killswitch" => match args.as_slice() {
+                ["true"] => Ok(Self::Killswitch(true)),
+                ["false"] => Ok(Self::Killswitch(false)),
+                _ => anyhow::bail!("incorrect arguments"),
             },
             _ => anyhow::bail!("no command matched"),
         }
@@ -65,6 +72,7 @@ impl SocketProtocol for Request {
             Self::Status => "status".into(),
             Self::Connect(id, protocol) => format!("connect:{id}:{protocol}"),
             Self::Disconnect => "disconnect".into(),
+            Self::Killswitch(enable) => format!("killswitch:{enable}"),
         }
         .as_bytes()
         .to_vec()

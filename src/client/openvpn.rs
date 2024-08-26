@@ -2,8 +2,13 @@ use super::*;
 use crate::{config, utils};
 use askama::Template;
 use clap::ValueEnum;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, io::ErrorKind};
+use std::{
+    fmt::Display,
+    fs::File,
+    io::{BufRead, BufReader, ErrorKind},
+};
 
 use sysinfo::Signal;
 
@@ -74,6 +79,13 @@ pub fn connect(server: &LogicalServer, protocol: &Protocol) -> Result<Pid> {
     let child = std::process::Command::new("openvpn")
         .arg("--daemon")
         .args(["--writepid", "/etc/protonvpn-rs/pid"])
+        .args([
+            "--log",
+            cache::get_path()
+                .join("ovpn.log")
+                .to_str()
+                .expect("valid path"),
+        ])
         .args([
             "--config",
             cache::file_path::<Config>()
@@ -160,6 +172,26 @@ fn create_config(server: &LogicalServer, protocol: &Protocol) -> Result<Config> 
     };
 
     Ok(Config::new(&template.render().unwrap()))
+}
+
+pub fn parse_nic(log_file: File) -> Option<String> {
+    let reader = BufReader::new(log_file);
+
+    #[cfg(target_os = "linux")]
+    let re = Regex::new(r"TUN/TAP device (.+) opened").unwrap();
+    #[cfg(target_os = "macos")]
+    let re = Regex::new(r"Opened utun device (.+)").unwrap();
+
+    reader.lines().find_map(|line| {
+        if let Ok(line) = line {
+            if let Some(captures) = re.captures(&line) {
+                if let Some(device) = captures.get(1) {
+                    return Some(device.as_str().to_string());
+                }
+            }
+        }
+        None
+    })
 }
 
 impl Remote {

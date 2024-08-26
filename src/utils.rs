@@ -4,7 +4,9 @@ use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pnet::datalink::NetworkInterface;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
 use std::path::Path;
+use std::process::{Command, Stdio};
 use std::sync::mpsc::channel;
 use std::time::Duration;
 use std::{net::IpAddr, path::PathBuf, str::FromStr};
@@ -95,8 +97,80 @@ pub fn lookup_ip() -> Result<IpResponse> {
     Ok(parsed)
 }
 
-pub fn find_network_interface(interface_name: &str) -> Option<NetworkInterface> {
+pub fn find_nic(interface_name: &str) -> Option<NetworkInterface> {
     pnet::datalink::interfaces()
         .into_iter()
         .find(|e| e.is_up() && !e.is_loopback() && !e.ips.is_empty() && e.name == interface_name)
+}
+
+pub struct Cmd<'a> {
+    program: &'a str,
+    args: Option<&'a [&'a str]>,
+}
+
+impl<'a> Cmd<'a> {
+    pub fn new(program: &'a str) -> Self {
+        Cmd {
+            program,
+            args: None,
+        }
+    }
+
+    pub fn output(self) -> Result<String> {
+        let output = Command::new(self.program)
+            .args(self.args.unwrap_or_default())
+            .output()?;
+
+        match output.status.success() {
+            true => {
+                let stdout = String::from_utf8(output.stdout)?;
+                Ok(stdout)
+            }
+            false => {
+                let stderr = String::from_utf8(output.stderr)?;
+                anyhow::bail!("Failed to start system service, error: {stderr}")
+            }
+        }
+    }
+
+    pub fn input(self, input: &str) -> Result<()> {
+        let mut child = Command::new(self.program)
+            .args(self.args.unwrap_or_default())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()?;
+
+        if let Some(mut stdin) = child.stdin.take() {
+            stdin.write_all(input.as_bytes())?;
+            stdin.flush()?;
+        }
+
+        match child.wait_with_output() {
+            Ok(output) => {
+                if !output.status.success() {
+                    anyhow::bail!("something went wrong, idk");
+                }
+
+                Ok(())
+            }
+            Err(err) => anyhow::bail!(err),
+        }
+    }
+
+    pub fn exec(self) -> Result<()> {
+        let output = Command::new(self.program)
+            .args(self.args.unwrap_or_default())
+            .output()?;
+
+        match output.status.success() {
+            true => Ok(()),
+            false => anyhow::bail!("Failed to run command in subprocess"),
+        }
+    }
+
+    pub fn args(mut self, args: &'a [&'a str]) -> Self {
+        self.args = Some(args);
+        self
+    }
 }

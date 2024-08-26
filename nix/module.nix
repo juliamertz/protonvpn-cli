@@ -63,6 +63,14 @@ in {
         '';
       };
 
+      killswitch = {
+        enable = mkEnableOption (mdDoc "ProtonVPN service");
+        custom_rules = mkOption {
+          type = types.nullOr (types.listOf types.str);
+          default = null;
+        };
+      };
+
       default_criteria = {
         tier = mkOption {
           type = types.str;
@@ -134,6 +142,11 @@ in {
         country = option country;
         features = array features;
       };
+
+      killswitch = with killswitch; {
+        inherit enable;
+        custom_rules = option (array (map str custom_rules));
+      };
     });
 
     systemd.services.protonvpn-rs = lib.mkIf cfg.enable {
@@ -142,7 +155,7 @@ in {
       after = [ "network-pre.target" ]
         ++ lib.optionals cfg.requireSops [ "decrypt-sops.service" ];
 
-      path = with pkgs; [ openvpn ];
+      path = with pkgs; [ openvpn iptables ];
       serviceConfig = {
         User = "root";
         Group = "root";

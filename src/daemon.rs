@@ -2,12 +2,13 @@ use crate::{
     api::{self, types::LogicalServer},
     cache,
     client::{self, openvpn::Protocol, Pid},
-    config,
+    config, killswitch,
     protocol::{Request, Response, ServerStatus, SocketProtocol},
     utils,
 };
 use anyhow::Result;
 use log;
+use parking_lot::RwLock;
 use signal_hook::{
     consts::{SIGINT, SIGTERM},
     iterator::Signals,
@@ -16,20 +17,23 @@ use std::{
     collections::HashMap,
     io::{Read, Write},
     os::unix::net::{UnixListener, UnixStream},
-    sync::{Arc, Mutex},
+    rc::Rc,
+    sync::Arc,
 };
 use sysinfo::Signal;
 
 #[derive(Debug, Clone)]
 pub struct ActiveServer {
-    pid: Pid,
-    server: LogicalServer,
-    protocol: Protocol,
+    pub pid: Pid,
+    pub server: LogicalServer,
+    pub protocol: Protocol,
 }
 
-pub struct DaemonState<'a> {
-    servers: HashMap<&'a str, &'a LogicalServer>,
-    active_server: Arc<Mutex<Option<ActiveServer>>>,
+pub type SharedState<'a> = Rc<State<'a>>;
+pub struct State<'a> {
+    pub servers: HashMap<&'a str, &'a LogicalServer>,
+    pub active_server: Arc<RwLock<Option<ActiveServer>>>,
+    pub killswitch_enabled: RwLock<bool>,
 }
 
 pub fn start_service() -> Result<()> {
@@ -43,36 +47,29 @@ pub fn start_service() -> Result<()> {
         .to_filtered(&config.default_criteria)
         .select(&config.default_select);
 
-    let socket = cache::get_path().join("socket");
-    if socket.exists() {
-        if let Err(err) = std::fs::remove_file(&socket) {
-            log::error!("Unable to delete socket file, error: {}", err);
-            return Err(err.into());
+    let state = Rc::new(State {
+        servers: servers.as_hashmap(),
+        active_server: Arc::new(RwLock::new(None)),
+        killswitch_enabled: RwLock::new(false),
+    });
+
+    if config.killswitch.enable {
+        if let Err(err) = handle_killswitch_request(&state, &true) {
+            anyhow::bail!("Error trying to enable killswitch, aborting. {err}");
         }
     }
 
-    let stream = match UnixListener::bind(socket) {
-        Err(err) => {
-            log::error!("Unable to bind to socket, error: {}", err);
-            return Err(err.into());
-        }
-        Ok(stream) => stream,
-    };
-
-    let state = Arc::new(DaemonState {
-        servers: servers.as_hashmap(),
-        active_server: Arc::new(Mutex::new(None)),
-    });
+    spawn_signal_handler(&state)?;
 
     log::info!("Daemon initialized");
-
-    spawn_signal_handler(&state)?;
 
     if let Some(server) = default_server {
         if let Err(err) = handle_connect_request(&server.id, &config.default_protocol, &state) {
             log::error!("Error while trying to connect to default server: {}", err)
         }
     }
+
+    let stream = bind_socket()?;
 
     for client in stream.incoming() {
         let mut client = client?;
@@ -95,7 +92,7 @@ pub fn start_service() -> Result<()> {
 fn handle_socket_request(
     req: &Request,
     stream: &mut UnixStream,
-    state: &Arc<DaemonState>,
+    state: &SharedState,
 ) -> Result<()> {
     match req {
         Request::Status => handle_status_request(stream, state)?,
@@ -103,14 +100,14 @@ fn handle_socket_request(
         Request::Connect(server_id, protocol) => {
             handle_connect_request(server_id, protocol, state)?
         }
+        Request::Killswitch(enable) => handle_killswitch_request(state, enable)?,
     }
 
     Ok(())
 }
 
-fn handle_status_request(stream: &mut UnixStream, state: &Arc<DaemonState>) -> Result<()> {
-    let active_server = state.active_server.lock().unwrap();
-    let res = match active_server.clone() {
+fn handle_status_request(stream: &mut UnixStream, state: &SharedState) -> Result<()> {
+    let res = match state.active_server.read().clone() {
         Some(active) => Response::Status(ServerStatus::Connected {
             pid: active.pid.to_owned(),
             name: active.server.name.to_owned(),
@@ -125,9 +122,8 @@ fn handle_status_request(stream: &mut UnixStream, state: &Arc<DaemonState>) -> R
     Ok(())
 }
 
-fn handle_disconnect_request(state: &Arc<DaemonState>) -> Result<()> {
-    let mut active_server = state.active_server.lock().unwrap();
-    match active_server.clone() {
+fn handle_disconnect_request(state: &SharedState) -> Result<()> {
+    match state.active_server.read().clone() {
         Some(active) => client::openvpn::disconnect(&active.pid)?,
         _ => {
             log::debug!("No currently running vpn client, doing nothing.");
@@ -135,25 +131,27 @@ fn handle_disconnect_request(state: &Arc<DaemonState>) -> Result<()> {
         }
     };
 
+    let mut active_server = state.active_server.write();
     *active_server = None;
 
     Ok(())
 }
 
-fn handle_connect_request(
-    server_id: &str,
-    protocol: &Protocol,
-    state: &Arc<DaemonState>,
-) -> Result<()> {
+fn handle_connect_request(server_id: &str, protocol: &Protocol, state: &SharedState) -> Result<()> {
     match state.servers.get(server_id) {
         Some(logical_server) => {
-            let mut active = state.active_server.lock().unwrap();
-            if let Some(active) = active.clone() {
+            if let Some(active) = state.active_server.read().clone() {
                 let same_server = server_id == active.server.id;
                 let same_protocol = protocol == &active.protocol;
+
                 if same_server && same_protocol {
                     log::debug!("Same server and same protocol, doing nothing.");
                     return Ok(());
+                }
+
+                if !same_protocol && *state.killswitch_enabled.read() {
+                    log::debug!("Server has different protocol, reapplying killswitch rules");
+                    killswitch::enable(protocol)?;
                 }
 
                 utils::kill_process(&active.pid, Signal::Term)?;
@@ -162,35 +160,63 @@ fn handle_connect_request(
             log::info!("Connecting to server {}", logical_server.name);
             let pid = client::openvpn::connect(logical_server, protocol)?;
 
-            let server = (*logical_server).clone();
+            let mut active = state.active_server.write();
             *active = Some(ActiveServer {
                 pid,
-                server,
+                server: (*logical_server).clone(),
                 protocol: protocol.to_owned(),
             });
+
             log::info!("Connected to {:?}", (*active));
         }
         None => {
             log::error!("No server found with id: {}", server_id);
-            return Ok(()); //FIX:
+            return Ok(());
         }
     }
 
     Ok(())
 }
 
-pub fn handle_stop_request(state: &Arc<DaemonState>) -> Result<()> {
+pub fn handle_stop_request(state: &SharedState) -> Result<()> {
     log::info!("Stopping daemon");
 
-    let server = state.active_server.lock().expect("to be unlocked").clone();
+    let server = state.active_server.read();
+    let killswitch_enabled = state.killswitch_enabled.read();
+
     for _ in 0..3 {
         let result = cleanup_vpn_process(&server);
         if result.is_ok() {
+            if *killswitch_enabled {
+                killswitch::disable()?;
+            }
+
             break;
         }
     }
 
     std::process::exit(0);
+}
+
+pub fn handle_killswitch_request(state: &SharedState, enable: &bool) -> Result<()> {
+    log::debug!("Handling killswitch request, setting state to {enable}");
+
+    match state.active_server.read().clone() {
+        Some(server) => match enable {
+            true => killswitch::enable(&server.protocol)?,
+            false => killswitch::disable()?,
+        },
+        None => {
+            anyhow::bail!("Can't enable killswitch as there is no active vpn connection")
+        }
+    }
+
+    let mut enabled = state.killswitch_enabled.write();
+    *enabled = enable.to_owned();
+
+    log::debug!("Sucessfully set killswitch");
+
+    Ok(())
 }
 
 pub fn send_request(req: Request) -> Result<UnixStream> {
@@ -220,7 +246,19 @@ pub fn send_request(req: Request) -> Result<UnixStream> {
     Ok(stream)
 }
 
-fn spawn_signal_handler(state: &Arc<DaemonState>) -> Result<()> {
+fn bind_socket() -> Result<UnixListener> {
+    let socket = cache::get_path().join("socket");
+    if socket.exists() {
+        if let Err(err) = std::fs::remove_file(&socket) {
+            log::error!("Unable to delete socket file, error: {}", err);
+            return Err(err.into());
+        }
+    }
+
+    UnixListener::bind(socket).map_err(|e| e.into())
+}
+
+fn spawn_signal_handler(state: &SharedState) -> Result<()> {
     log::debug!("Spawning exit signal handler");
     let mut signals = Signals::new([SIGINT, SIGTERM])?;
     let state = state.active_server.clone();
@@ -230,7 +268,11 @@ fn spawn_signal_handler(state: &Arc<DaemonState>) -> Result<()> {
 
         #[allow(clippy::never_loop)]
         for sig in signals.forever() {
-            let active_server = state.lock().unwrap().clone();
+            let active_server = state.read();
+
+            if let Err(err) = killswitch::disable() {
+                log::error!("Unable to disable killswitch, error: {err}")
+            }
 
             log::debug!("Received signal {}, cleaning up processes", sig);
             if let Err(err) = cleanup_vpn_process(&active_server) {

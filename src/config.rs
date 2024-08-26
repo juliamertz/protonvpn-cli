@@ -44,6 +44,12 @@ pub struct Filters {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Killswitch {
+    pub enable: bool,
+    pub custom_rules: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(default)]
 pub struct Configuration {
     pub max_cache_age: u64,
@@ -54,6 +60,7 @@ pub struct Configuration {
     pub credentials_path: Option<PathBuf>,
     #[cfg(target_os = "linux")]
     pub update_resolv_conf_path: Option<PathBuf>,
+    pub killswitch: Killswitch,
 }
 
 impl Default for Configuration {
@@ -71,6 +78,10 @@ impl Default for Configuration {
                 max_load: 90,
                 country: None,
                 features: vec![FeatureEnum::P2P, FeatureEnum::Streaming],
+            },
+            killswitch: Killswitch {
+                enable: false,
+                custom_rules: None,
             },
         }
     }

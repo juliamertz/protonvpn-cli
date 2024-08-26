@@ -1,5 +1,5 @@
 use colored::Colorize;
-use std::{io::Read, path::PathBuf};
+use std::{fs::File, io::Read, path::PathBuf};
 
 use anyhow::Result;
 use clap::{builder::EnumValueParser, command, value_parser, Arg, ArgAction, ArgMatches, Command};
@@ -7,7 +7,7 @@ use clap::{builder::EnumValueParser, command, value_parser, Arg, ArgAction, ArgM
 use crate::{
     api::{self, Country, FilteredLogicalServers, LogicalServers, Ordering, Tier},
     cache,
-    client::openvpn::Protocol,
+    client::{self, openvpn::Protocol},
     config::{self, Configuration, FeatureEnum, Filters, Select},
     daemon,
     protocol::{Request, Response, ServerStatus, SocketProtocol},
@@ -32,6 +32,7 @@ pub fn init() -> Command {
         .subcommand(init_query_subcommand())
         .subcommand(init_service_subcommand())
         .subcommand(init_config_subcommand())
+        .subcommand(init_killswitch_subcommand())
 }
 
 fn init_filter_args() -> [Arg; 8] {
@@ -242,9 +243,10 @@ pub fn handle_status_subcommand(args: &ArgMatches) -> Result<()> {
                 pid,
                 protocol,
             } => {
-                let info = utils::lookup_ip()?;
-                // TODO: make sure this still works if tun0 is used by other vpn
-                let interface = match utils::find_network_interface("tun0") {
+                let logfile = File::open(cache::get_path().join("ovpn.log"))?;
+                let nic = client::openvpn::parse_nic(logfile);
+
+                let interface = match utils::find_nic(&nic.expect("to find nic")) {
                     Some(interface) => {
                         &format!("{} {}", interface.name, interface.ips.first().unwrap())
                     }
@@ -259,6 +261,7 @@ pub fn handle_status_subcommand(args: &ArgMatches) -> Result<()> {
                 ]);
 
                 if let Some(true) = args.get_one::<bool>("ip") {
+                    let info = utils::lookup_ip()?;
                     status.push(("Public IP", &info.ip.to_string()))
                 }
 
@@ -346,15 +349,12 @@ pub fn handle_service_subcommand(args: &ArgMatches) -> Result<()> {
         Some(("start", args)) => {
             if std::env::var("RUST_LOG").is_err() {
                 if let Some(true) = args.get_one::<bool>("verbose") {
-                    dbg!("setting verbose loggin");
                     std::env::set_var("RUST_LOG", "trace");
                 }
             };
 
             if let Some(true) = args.get_one::<bool>("daemon") {
-                if let Err(e) = daemon::start_service() {
-                    eprintln!("Daemon encountered an error, {}", e);
-                }
+                daemon::start_service().unwrap()
             } else {
                 service::start()?;
             }
@@ -445,4 +445,24 @@ impl StatusTable {
             println!("{padding}{}: {}", line.key.magenta(), line.value)
         }
     }
+}
+
+pub fn init_killswitch_subcommand() -> Command {
+    Command::new("killswitch")
+        .visible_alias("ks")
+        .about("Enable/Disable the killswitch")
+        .subcommand(Command::new("enable"))
+        .subcommand(Command::new("disable"))
+}
+
+pub fn handle_killswitch_subcommand(args: &ArgMatches) -> Result<()> {
+    let enable = match args.subcommand() {
+        Some(("enable", _)) => true,
+        Some(("disable", _)) => false,
+        _ => unimplemented!(),
+    };
+
+    daemon::send_request(Request::Killswitch(enable))?;
+
+    Ok(())
 }
