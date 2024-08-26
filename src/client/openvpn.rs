@@ -2,12 +2,10 @@ use super::*;
 use crate::{config, utils};
 use askama::Template;
 use clap::ValueEnum;
-use notify::{EventKind, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, io::ErrorKind};
 
 use sysinfo::Signal;
-
 
 #[derive(Debug, Clone)]
 pub struct Config(std::sync::Arc<str>);
@@ -95,7 +93,7 @@ pub fn connect(server: &LogicalServer, protocol: &Protocol) -> Result<Pid> {
     child.wait().expect("process to start/finish");
 
     let pid_path = cache::file_path::<Pid>();
-    let pid = wait_for_file_and_read(pid_path.to_str().unwrap())?;
+    let pid = utils::wait_for_file_and_read(pid_path.to_str().unwrap())?;
     let pid = Pid::try_from(pid)?;
 
     Ok(pid)
@@ -108,46 +106,6 @@ pub fn disconnect(pid: &Pid) -> Result<()> {
     let _ = cache::delete::<Pid>();
 
     Ok(())
-}
-
-use notify::RecommendedWatcher;
-use std::fs;
-use std::path::Path;
-use std::sync::mpsc::channel;
-use std::time::Duration;
-
-fn wait_for_file_and_read(path: &str) -> Result<String> {
-    let (tx, rx) = channel();
-    let mut watcher: RecommendedWatcher = Watcher::new(tx, notify::Config::default())?;
-
-    let file_path = Path::new(path);
-    let parent_dir = file_path.parent().ok_or(std::io::Error::new(
-        std::io::ErrorKind::NotFound,
-        "Parent directory not found",
-    ))?;
-
-    // Watch the parent directory
-    watcher.watch(parent_dir, RecursiveMode::NonRecursive)?;
-
-    loop {
-        match rx.recv_timeout(Duration::from_secs(5)) {
-            Ok(event) => {
-                if let EventKind::Create(_) | EventKind::Modify(_) = event?.kind {
-                    if file_path.exists() {
-                        let content = fs::read_to_string(file_path)?;
-                        return Ok(content);
-                    }
-                }
-            }
-            Err(_) => {
-                // Timeout reached or error occurred
-                if file_path.exists() {
-                    let content = fs::read_to_string(file_path)?;
-                    return Ok(content);
-                }
-            }
-        }
-    }
 }
 
 #[cfg(target_os = "linux")]

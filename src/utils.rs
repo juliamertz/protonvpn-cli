@@ -1,10 +1,46 @@
+use crate::client::Pid;
 use anyhow::Result;
+use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pnet::datalink::NetworkInterface;
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
+use std::sync::mpsc::channel;
+use std::time::Duration;
 use std::{net::IpAddr, path::PathBuf, str::FromStr};
 use sysinfo::{Process, Signal, System};
 
-use crate::client::Pid;
+pub fn wait_for_file_and_read(path: &str) -> Result<String> {
+    let (tx, rx) = channel();
+    let mut watcher: RecommendedWatcher = Watcher::new(tx, notify::Config::default())?;
+
+    let file_path = Path::new(path);
+    let parent_dir = file_path.parent().ok_or(std::io::Error::new(
+        std::io::ErrorKind::NotFound,
+        "Parent directory not found",
+    ))?;
+
+    watcher.watch(parent_dir, RecursiveMode::NonRecursive)?;
+
+    loop {
+        match rx.recv_timeout(Duration::from_secs(5)) {
+            Ok(event) => {
+                if let EventKind::Create(_) | EventKind::Modify(_) = event?.kind {
+                    if file_path.exists() {
+                        let content = fs::read_to_string(file_path)?;
+                        return Ok(content);
+                    }
+                }
+            }
+            Err(_) => {
+                if file_path.exists() {
+                    let content = fs::read_to_string(file_path)?;
+                    return Ok(content);
+                }
+            }
+        }
+    }
+}
 
 pub fn home_dir() -> PathBuf {
     #[allow(deprecated)] // deprecated because of windows support.
