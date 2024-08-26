@@ -8,7 +8,6 @@ use std::{fmt::Display, io::ErrorKind};
 
 use sysinfo::Signal;
 
-const DEFAULT_PORTS: &[u32; 5] = &[5060, 4569, 80, 1194, 51820];
 
 #[derive(Debug, Clone)]
 pub struct Config(std::sync::Arc<str>);
@@ -24,6 +23,18 @@ pub enum Protocol {
     #[default]
     Udp,
     Tcp,
+}
+
+const UDP_PORTS: &[u32; 5] = &[5060, 4569, 80, 1194, 51820];
+const TCP_PORTS: &[u32; 3] = &[8443, 443, 7770];
+
+impl Protocol {
+    pub fn default_ports(&self) -> &'static [u32] {
+        match self {
+            Self::Udp => UDP_PORTS,
+            Self::Tcp => TCP_PORTS,
+        }
+    }
 }
 
 impl Display for Protocol {
@@ -84,7 +95,6 @@ pub fn connect(server: &LogicalServer, protocol: &Protocol) -> Result<Pid> {
     child.wait().expect("process to start/finish");
 
     let pid_path = cache::file_path::<Pid>();
-    // let pid = wait_for_pid_file(pid_path)?;
     let pid = wait_for_file_and_read(pid_path.to_str().unwrap())?;
     let pid = Pid::try_from(pid)?;
 
@@ -164,7 +174,7 @@ fn create_config(server: &LogicalServer, protocol: &Protocol) -> Result<Config> 
     let remotes = server
         .entry_ips()
         .into_iter()
-        .flat_map(Remote::from_ip)
+        .flat_map(|ip| Remote::from_ip(ip, protocol))
         .collect::<Vec<_>>();
 
     let config = config::read().expect("config to be initialized");
@@ -195,8 +205,9 @@ fn create_config(server: &LogicalServer, protocol: &Protocol) -> Result<Config> 
 }
 
 impl Remote {
-    pub fn from_ip(ip: Ipv4Addr) -> Vec<Remote> {
-        DEFAULT_PORTS
+    pub fn from_ip(ip: Ipv4Addr, protocol: &Protocol) -> Vec<Remote> {
+        protocol
+            .default_ports()
             .iter()
             .map(|port| Remote { ip, port: *port })
             .collect()
