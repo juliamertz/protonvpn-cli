@@ -147,7 +147,8 @@ in {
         User = "root";
         Group = "root";
 
-        ExecStart = "${protonvpn-rs}/bin/protonvpn-rs service start --daemon --verbose";
+        ExecStart =
+          "${protonvpn-rs}/bin/protonvpn-rs service start --daemon --verbose";
         Type = "simple";
         RemainAfterExit = true;
       };
