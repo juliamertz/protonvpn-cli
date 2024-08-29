@@ -1,8 +1,8 @@
 lint:
-	-markdownlint --quiet --fix .
-	prettier --write **/*.md
 	cargo clippy --all --fix
 	cargo fmt --all 
+	-markdownlint --quiet --fix .
+	prettier --write **/*.md
 	nixfmt ./nix/*.nix 
 	statix fix ./nix
 	deadnix --edit --no-underscore

@@ -15,20 +15,17 @@
 - [ ] Alert user in case traffic isn't actually being routed through tunnel
 - [ ] Openvpn process not being killed if daemon is shut down before connection is established
 - [ ] Add notify feature for desktop notifications
-- [ ] Merge default_criteria config option with cli flags
 
 ## Features
 
 ### Filtering servers
-
-> TODO: Filter by features for cli
 
 There are many flags to filter servers, these can be used with the `connect` and `query` subcommands.
 | Flag | Description |
 | --------------------------|----------------------------------------------------------------------------|
 | `-c`, `--country` | Filter servers by country [possible values: [here](src/api/types.rs#L136)] |
 | `-t`, `--tier <tier>` | servers by tier [possible values: free, premium, all] |
-| `-s`, `--sort <sort>` | servers [possible values: speed, load] |
+| `-s`, `--sort <sort>` | [possible values: speed, load] |
 | `--max-load <max-load>` | servers by load |
 | `--tor` | include servers with the Tor feature |
 | `--p2p` | include servers with the P2P feature |
