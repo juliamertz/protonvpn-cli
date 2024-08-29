@@ -171,30 +171,19 @@ pub fn handle_connect_subcommand(args: &ArgMatches) -> Result<()> {
     let servers = api::logicals()?;
     let servers = filter_servers(&servers, args);
 
-    let server = if let Some(true) = args.get_one::<bool>("fastest") {
-        servers
-            .select(&Select::Fastest)
-            .expect("No servers matching search criteria")
-    }
-    // Select random server from filtered list
-    else if let Some(true) = args.get_one::<bool>("random") {
-        servers
-            .select(&Select::Random)
-            .expect("No servers matching search criteria")
-    }
-    // Select server with lowest load
-    else if let Some(true) = args.get_one::<bool>("least-load") {
-        servers
-            .select(&Select::LeastLoad)
-            .expect("No servers matching search criteria")
-    }
-    // Select first server (best case) from sorted list
-    else {
-        servers
-            .0
-            .first()
-            .expect("No servers matching search criteria")
+    let select = if let Some(true) = args.get_one::<bool>("fastest") {
+        Select::Fastest
+    } else if let Some(true) = args.get_one::<bool>("random") {
+        Select::Random
+    } else if let Some(true) = args.get_one::<bool>("least-load") {
+        Select::LeastLoad
+    } else {
+        config.default_select.to_owned()
     };
+
+    let server = servers
+        .select(&select)
+        .expect("No servers matching search criteria");
 
     println!("Connecting to {}!", &server.name);
 
