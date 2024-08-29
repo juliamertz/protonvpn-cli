@@ -102,16 +102,29 @@ fn filter_servers<'a>(
         features.push(FeatureEnum::P2P)
     }
 
+    if features.is_empty() {
+        features.extend_from_slice(config.default_criteria.features.as_slice());
+    }
+
+    let country = args
+        .get_one::<Country>("country")
+        .map(|val| val.to_owned())
+        .or(config.default_criteria.country);
+
+    let tier = args
+        .get_one::<Tier>("tier")
+        .unwrap_or(&config.default_criteria.tier)
+        .to_owned();
+
+    let max_load = args
+        .get_one::<u8>("max-load")
+        .unwrap_or(&config.default_criteria.max_load)
+        .to_owned();
+
     servers.to_filtered(&Filters {
-        country: args.get_one::<Country>("country").cloned(),
-        tier: args
-            .get_one::<Tier>("tier")
-            .unwrap_or(&config.default_criteria.tier)
-            .clone(),
-        max_load: args
-            .get_one::<u8>("max-load")
-            .unwrap_or(&config.default_criteria.max_load)
-            .to_owned(),
+        country,
+        tier,
+        max_load,
         features,
     })
 }
