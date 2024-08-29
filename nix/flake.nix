@@ -1,31 +1,49 @@
 {
+  description = "A Nix-flake-based Rust development environment";
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = { nixpkgs, self, ... }@inputs:
+  outputs = { self, nixpkgs, rust-overlay }:
     let
       supportedSystems =
-        nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-linux" ];
-      overlays = [ (import inputs.rust-overlay) ];
+        [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+      forEachSupportedSystem = f:
+        nixpkgs.lib.genAttrs supportedSystems (system:
+          f {
+            pkgs = import nixpkgs {
+              inherit system;
+              overlays =
+                [ rust-overlay.overlays.default self.overlays.default ];
+            };
+          });
     in {
-      packages = supportedSystems (system:
-        let
-          pkgs = import inputs.nixpkgs { inherit system overlays; };
-          protonvpn-rs = pkgs.callPackage ./package.nix { };
+      overlays.default = final: prev: {
+        rustToolchain = let rust = prev.rust-bin;
+        in if builtins.pathExists ./rust-toolchain.toml then
+          rust.fromRustupToolchainFile ./rust-toolchain.toml
+        else if builtins.pathExists ./rust-toolchain then
+          rust.fromRustupToolchainFile ./rust-toolchain
+        else
+          rust.stable.latest.default.override {
+            extensions = [ "rust-src" "rustfmt" ];
+          };
+      };
+
+      packages = forEachSupportedSystem ({ pkgs }:
+        let protonvpn-rs = pkgs.callPackage ./package.nix { };
         in {
           default = protonvpn-rs;
           inherit protonvpn-rs;
         });
 
-      devShell = supportedSystems (system:
-        let
-          pkgs = import inputs.nixpkgs { inherit system overlays; };
+      devShells = forEachSupportedSystem ({ pkgs }: {
+        default = let
           tools = with pkgs; [
             nixfmt
             deadnix
@@ -34,19 +52,23 @@
             nodePackages.prettier
           ];
         in pkgs.mkShell {
-          name = "protonvpn-rs-shell";
-          nativeBuildInputs = with pkgs; [ pkg-config ];
+          packages = with pkgs;
+            tools ++ [
+              rustToolchain
+              openssl
+              pkg-config
+              cargo-deny
+              cargo-edit
+              cargo-watch
+              rust-analyzer
+            ];
 
-          buildInputs = with pkgs;
-            [ openssl openvpn ] ++ tools ++ (with pkgs.rust-bin; [
-              (stable.latest.minimal.override {
-                extensions = [ "clippy" "rust-src" ];
-              })
-
-              nightly.latest.rustfmt
-              nightly.latest.rust-analyzer
-            ]);
-        });
+          env = {
+            RUST_SRC_PATH =
+              "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
+          };
+        };
+      });
 
       nixosModules.protonvpn = { pkgs, ... }: {
         imports = [
@@ -57,4 +79,3 @@
       };
     };
 }
-
