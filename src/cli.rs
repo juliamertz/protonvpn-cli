@@ -167,6 +167,7 @@ pub fn init_connect_subcommand() -> Command {
 }
 
 pub fn handle_connect_subcommand(args: &ArgMatches) -> Result<()> {
+    let config = config::read()?;
     let servers = api::logicals()?;
     let servers = filter_servers(&servers, args);
 
@@ -199,7 +200,7 @@ pub fn handle_connect_subcommand(args: &ArgMatches) -> Result<()> {
 
     let protocol = match args.get_one::<Protocol>("protocol") {
         Some(protocol) => protocol.to_owned(),
-        None => Protocol::default(),
+        None => config.default_protocol,
     };
     let req = Request::Connect(server.id.clone(), protocol);
     daemon::send_request(req)?;
