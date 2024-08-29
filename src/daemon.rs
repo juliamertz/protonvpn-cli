@@ -59,6 +59,15 @@ pub fn start_service() -> Result<()> {
         }
     }
 
+    if let Some(pid) = cache::read::<Pid>() {
+        log::debug!("Found leftover openvpn pid file, attempting cleanup");
+
+        match utils::kill_process(&pid, Signal::Term) {
+            Ok(()) => log::debug!("Succesfully killed orphan process"),
+            Err(err) => log::error!("Unable to cleanup orphan process, error: {err}"),
+        }
+    };
+
     spawn_signal_handler(&state)?;
 
     log::info!("Daemon initialized");
