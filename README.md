@@ -1,20 +1,12 @@
 # Work in progress
 
-## Features
-
-- [x] Connect to random or fastest server from list
-- [x] Filter by features
-- [x] Killswitch (still needs some work on macos)
-- [ ] Split tunneling
-
 ## Todo / Bugs
 
-- [ ] Nix Darwin module
-- [ ] Clean up openvpn process if this wasn't done on last exit
-- [ ] Set up test suite
-- [ ] Alert user in case traffic isn't actually being routed through tunnel
-- [ ] Openvpn process not being killed if daemon is shut down before connection is established
 - [ ] Add notify feature for desktop notifications
+- [ ] Split tunneling
+- [ ] Nix Darwin module
+- [ ] Openvpn process not being killed if daemon is shut down before connection is established
+- [ ] Set up test suite
 
 ## Features
 

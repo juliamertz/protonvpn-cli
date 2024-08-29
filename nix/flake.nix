@@ -23,7 +23,7 @@
             };
           });
     in {
-      overlays.default = final: prev: {
+      overlays.default = _: prev: {
         rustToolchain = let rust = prev.rust-bin;
         in if builtins.pathExists ./rust-toolchain.toml then
           rust.fromRustupToolchainFile ./rust-toolchain.toml

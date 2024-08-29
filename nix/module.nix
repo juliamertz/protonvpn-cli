@@ -73,7 +73,7 @@ in {
 
       default_criteria = {
         tier = mkOption {
-          type = types.str;
+          type = types.nullOr (types.enum [ "Premium" "Free" ]);
           default = "Premium";
           description = mkDoc ''
             Choice of: [Premium, Free]
