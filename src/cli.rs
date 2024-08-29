@@ -251,16 +251,17 @@ pub fn handle_status_subcommand(args: &ArgMatches) -> Result<()> {
 
                 let interface = match utils::find_nic(&nic.expect("to find nic")) {
                     Some(interface) => {
-                        &format!("{} {}", interface.name, interface.ips.first().unwrap())
+                        let entry_ips = *interface.ips.first().unwrap();
+                        format!("{} {}", interface.name, entry_ips)
                     }
-                    None => "Network interface not found! your ip is exposed",
+                    None => "Network interface not found! your ip is exposed".to_string(),
                 };
                 println!("{} Status connected", "●".green());
                 let mut status = StatusTable::new(vec![
                     ("Server", &name),
                     ("Protocol", &protocol.to_string()),
                     ("OpenVPN PID", &pid.to_string()),
-                    ("Interface", interface),
+                    ("Interface", interface.as_str()),
                 ]);
 
                 if let Some(true) = args.get_one::<bool>("ip") {
@@ -387,11 +388,11 @@ pub fn handle_config_subcommand(args: &ArgMatches) -> Result<()> {
     match args.subcommand() {
         Some(("writedefault", args)) => {
             let path = match args.get_one::<PathBuf>("path") {
-                Some(path) => path,
-                None => &cache::get_path().join("config.ron"),
+                Some(path) => path.to_owned(),
+                None => cache::get_path().join("config.ron"),
             };
 
-            std::fs::write(path, ron::to_string(&Configuration::default())?)?;
+            std::fs::write(&path, ron::to_string(&Configuration::default())?)?;
 
             println!(
                 "Written default config to {}",

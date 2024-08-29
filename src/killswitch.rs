@@ -5,6 +5,7 @@ use crate::{
 };
 use crate::{cmd, utils::Cmd};
 use anyhow::Result;
+use openvpn::Protocol;
 use std::{fs::File, path::PathBuf};
 
 #[cfg(target_os = "linux")]
@@ -15,8 +16,6 @@ pub use macos::*;
 
 #[cfg(target_os = "linux")]
 mod linux {
-    use openvpn::Protocol;
-
     use super::*;
 
     use core::str;
@@ -132,12 +131,14 @@ mod linux {
 
 #[cfg(target_os = "macos")]
 mod macos {
+    use std::net::Ipv4Addr;
+
     use super::*;
 
     pub struct Pf;
     type Rule = String;
 
-    pub fn enable(protocol: &Protocol) -> Result<()> {
+    pub fn enable(protocol: &Protocol, entry_ips: &[Ipv4Addr]) -> Result<()> {
         let logfile = File::open(cache::get_path().join("ovpn.log"))?;
         let config = config::read()?;
 
@@ -149,7 +150,7 @@ mod macos {
         ];
 
         for port in protocol.default_ports() {
-            for ip in active.server.entry_ips() {
+            for ip in entry_ips {
                 rules.push(format!(
                     "pass out proto {protocol} from any to {ip} port {port}"
                 ))

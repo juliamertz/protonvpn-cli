@@ -160,7 +160,10 @@ fn handle_connect_request(server_id: &str, protocol: &Protocol, state: &SharedSt
 
                 if !same_protocol && *state.killswitch_enabled.read() {
                     log::debug!("Server has different protocol, reapplying killswitch rules");
+                    #[cfg(target_os = "linux")]
                     killswitch::enable(protocol)?;
+                    #[cfg(target_os = "macos")]
+                    killswitch::enable(protocol, &active.server.entry_ips())?;
                 }
 
                 utils::kill_process(&active.pid, Signal::Term)?;
@@ -212,7 +215,12 @@ pub fn handle_killswitch_request(state: &SharedState, enable: &bool) -> Result<(
 
     match state.active_server.read().clone() {
         Some(server) => match enable {
-            true => killswitch::enable(&server.protocol)?,
+            true => {
+                #[cfg(target_os = "linux")]
+                killswitch::enable(&server.protocol)?;
+                #[cfg(target_os = "macos")]
+                killswitch::enable(&server.protocol, &server.server.entry_ips())?
+            }
             false => killswitch::disable()?,
         },
         None => {

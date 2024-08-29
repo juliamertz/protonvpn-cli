@@ -42,8 +42,10 @@
           inherit protonvpn-rs;
         });
 
-      devShells = forEachSupportedSystem ({ pkgs }: {
-        default = let
+      devShells = forEachSupportedSystem ({ pkgs }:
+        let
+          inherit (pkgs) lib mkShell system;
+          isDarwin = lib.strings.hasSuffix "-darwin" system;
           tools = with pkgs; [
             nixfmt
             deadnix
@@ -51,24 +53,28 @@
             markdownlint-cli
             nodePackages.prettier
           ];
-        in pkgs.mkShell {
-          packages = with pkgs;
-            tools ++ [
-              rustToolchain
-              openssl
-              pkg-config
-              cargo-deny
-              cargo-edit
-              cargo-watch
-              rust-analyzer
-            ];
+        in {
+          default = mkShell {
+            packages = with pkgs;
+              tools ++ [
+                rustToolchain
+                openssl
+                pkg-config
+                cargo-deny
+                cargo-edit
+                cargo-watch
+                rust-analyzer
+              ];
 
-          env = {
-            RUST_SRC_PATH =
-              "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
+            nativeBuildInputs = lib.optionals isDarwin
+              (with pkgs; [ darwin.apple_sdk.frameworks.SystemConfiguration ]);
+
+            env = {
+              RUST_SRC_PATH =
+                "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
+            };
           };
-        };
-      });
+        });
 
       nixosModules.protonvpn = { pkgs, ... }: {
         imports = [
