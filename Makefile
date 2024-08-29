@@ -1,4 +1,6 @@
 lint:
+	-markdownlint --quiet --fix .
+	prettier --write **/*.md
 	cargo clippy --all --fix
 	cargo fmt --all 
 	nixfmt ./nix/*.nix 

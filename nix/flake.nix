@@ -26,7 +26,13 @@
       devShell = supportedSystems (system:
         let
           pkgs = import inputs.nixpkgs { inherit system overlays; };
-          tools = with pkgs; [ nixfmt deadnix statix ];
+          tools = with pkgs; [
+            nixfmt
+            deadnix
+            statix
+            markdownlint-cli
+            nodePackages.prettier
+          ];
         in pkgs.mkShell {
           name = "protonvpn-rs-shell";
           nativeBuildInputs = with pkgs; [ pkg-config ];
