@@ -171,13 +171,16 @@ mod macos {
     impl Pf {
         fn restore() -> Result<()> {
             log::trace!("flushing pf rules");
-            cmd!("pcfctl", "-F", "all").output()?;
+            cmd!("pfctl", "-F", "all").output()?;
 
             Ok(())
         }
 
         fn apply_rules(contents: Vec<Rule>) -> Result<()> {
-            let contents = contents.join("\n");
+            let mut contents = contents.join("\n");
+            // if we don't terminate the last line pfctl can't parse the config
+            contents.extend(["\n"]);
+
             let config_path = Self::config_path();
             std::fs::write(&config_path, contents)?;
 

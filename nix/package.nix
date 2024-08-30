@@ -1,20 +1,15 @@
-{ lib, openssl, pkg-config, makeRustPlatform, rust-bin, ... }:
+{ lib, makeRustPlatform, rust-bin, buildInputs, nativeBuildInputs, ... }:
 let
-  buildInputs = [ openssl ];
-  nativeBuildInputs = [ pkg-config ];
-
+  manifest = (lib.importTOML ../Cargo.toml).package;
   rustPlatform = makeRustPlatform {
     cargo = rust-bin.stable.latest.minimal;
     rustc = rust-bin.stable.latest.minimal;
   };
-
-  manifest = (lib.importTOML ../Cargo.toml).package;
-
 in rustPlatform.buildRustPackage rec {
   inherit buildInputs nativeBuildInputs;
+  inherit (manifest) name version;
 
   src = ../.;
-  inherit (manifest) name version;
 
   postInstall = # sh
     "ln -sf $out/bin/${manifest.name} $out/bin/pvpn";

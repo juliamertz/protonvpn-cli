@@ -13,6 +13,14 @@
     let
       supportedSystems =
         [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+      dependencies = pkgs: {
+        buildInputs = with pkgs; [ openssl ];
+        nativeBuildInputs = with pkgs;
+          [ pkg-config ] ++ lib.optionals (isDarwin pkgs.system)
+          [ darwin.apple_sdk.frameworks.SystemConfiguration ];
+      };
+
+      isDarwin = system: nixpkgs.lib.strings.hasSuffix "-darwin" system;
       forEachSupportedSystem = f:
         nixpkgs.lib.genAttrs supportedSystems (system:
           f {
@@ -36,38 +44,35 @@
       };
 
       packages = forEachSupportedSystem ({ pkgs }:
-        let protonvpn-rs = pkgs.callPackage ./package.nix { };
+        let
+          protonvpn-rs = pkgs.callPackage ./package.nix {
+            inherit (dependencies pkgs) buildInputs nativeBuildInputs;
+          };
         in {
           default = protonvpn-rs;
           inherit protonvpn-rs;
         });
 
       devShells = forEachSupportedSystem ({ pkgs }:
-        let
-          inherit (pkgs) lib mkShell system;
-          isDarwin = lib.strings.hasSuffix "-darwin" system;
-          tools = with pkgs; [
-            nixfmt
-            deadnix
-            statix
-            markdownlint-cli
-            nodePackages.prettier
-          ];
+        let inherit (pkgs) mkShell;
         in {
           default = mkShell {
-            packages = with pkgs;
-              tools ++ [
-                rustToolchain
-                openssl
-                pkg-config
-                cargo-deny
-                cargo-edit
-                cargo-watch
-                rust-analyzer
-              ];
+            packages = with pkgs; [
+              rustToolchain
+              cargo-deny
+              cargo-edit
+              cargo-watch
+              rust-analyzer
 
-            nativeBuildInputs = lib.optionals isDarwin
-              (with pkgs; [ darwin.apple_sdk.frameworks.SystemConfiguration ]);
+              # tools
+              nixfmt
+              deadnix
+              statix
+              markdownlint-cli
+              nodePackages.prettier
+            ];
+
+            inherit (dependencies pkgs) buildInputs nativeBuildInputs;
 
             env = {
               RUST_SRC_PATH =

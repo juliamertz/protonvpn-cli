@@ -165,7 +165,10 @@ impl<'a> Cmd<'a> {
 
         match output.status.success() {
             true => Ok(()),
-            false => anyhow::bail!("Failed to run command in subprocess"),
+            false => {
+                let stderr = String::from_utf8(output.stderr)?;
+                anyhow::bail!("Failed to run command in subprocess, error: {stderr}");
+            }
         }
     }
 
