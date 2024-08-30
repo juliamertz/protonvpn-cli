@@ -1,7 +1,11 @@
 use crate::{
     api::{self, types::LogicalServer},
     cache,
-    client::{self, openvpn::Protocol, Pid},
+    client::{
+        self,
+        openvpn::{self, Protocol},
+        Pid,
+    },
     config, killswitch,
     protocol::{Request, Response, ServerStatus, SocketProtocol},
     utils,
@@ -59,7 +63,7 @@ pub fn start_service() -> Result<()> {
         }
     }
 
-    if let Some(pid) = cache::read::<Pid>() {
+    if let Ok(pid) = openvpn::read_pidfile() {
         log::debug!("Found leftover openvpn pid file, attempting cleanup");
 
         match utils::kill_process(&pid, Signal::Term) {

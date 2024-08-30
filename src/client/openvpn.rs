@@ -78,7 +78,7 @@ pub fn connect(server: &LogicalServer, protocol: &Protocol) -> Result<Pid> {
 
     let child = std::process::Command::new("openvpn")
         .arg("--daemon")
-        .args(["--writepid", "/etc/protonvpn-rs/pid"])
+        .args(["--writepid", PIDFILE_PATH])
         .args([
             "--log",
             cache::get_path()
@@ -104,8 +104,7 @@ pub fn connect(server: &LogicalServer, protocol: &Protocol) -> Result<Pid> {
 
     child.wait().expect("process to start/finish");
 
-    let pid_path = cache::file_path::<Pid>();
-    let pid = utils::wait_for_file_and_read(pid_path.to_str().unwrap())?;
+    let pid = utils::wait_for_file_and_read(PIDFILE_PATH)?;
     let pid = Pid::try_from(pid)?;
 
     Ok(pid)
@@ -115,7 +114,7 @@ pub fn disconnect(pid: &Pid) -> Result<()> {
     utils::kill_process(pid, Signal::Term)?;
 
     println!("Disconnected openvpn client");
-    let _ = cache::delete::<Pid>();
+    let _ = delete_pidfile();
 
     Ok(())
 }
@@ -192,6 +191,21 @@ pub fn parse_nic(log_file: File) -> Option<String> {
         }
         None
     })
+}
+
+pub const PIDFILE_PATH: &str = "/etc/protonvpn-rs/openvpn.pid";
+
+pub fn read_pidfile() -> Result<Pid> {
+    match std::fs::read(PIDFILE_PATH) {
+        Ok(content) => Ok(Pid::try_from(String::from_utf8(content)?)?),
+        Err(err) => anyhow::bail!("unable to read pidfile, error: {err}"),
+    }
+}
+
+pub fn delete_pidfile() -> Result<()> {
+    std::fs::remove_file(PIDFILE_PATH)?;
+
+    Ok(())
 }
 
 impl Remote {

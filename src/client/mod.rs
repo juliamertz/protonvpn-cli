@@ -16,12 +16,6 @@ impl Pid {
     }
 }
 
-impl CachedObject for Pid {
-    fn filename() -> &'static str {
-        "pid"
-    }
-}
-
 impl From<u32> for Pid {
     fn from(value: u32) -> Self {
         Self(value)
