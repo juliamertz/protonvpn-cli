@@ -15,7 +15,7 @@
 There are many flags to filter servers, these can be used with the `connect` and `query` subcommands.
 | Flag | Description |
 | --------------------------|----------------------------------------------------------------------------|
-| `-c`, `--country` | Filter servers by country [possible values: [here](src/api/types.rs#L136)] |
+| `-c`, `--country` | Filter servers by country [possible values: [here](src/api/types.rs#L132)] |
 | `-t`, `--tier <tier>` | servers by tier [possible values: free, premium, all] |
 | `-s`, `--sort <sort>` | [possible values: speed, load] |
 | `--max-load <max-load>` | servers by load |
