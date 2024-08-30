@@ -42,46 +42,45 @@ impl<'de> Deserialize<'de> for Features {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Location {
-    #[serde(rename = "Lat")]
-    pub lat: f64,
-
-    #[serde(rename = "Long")]
-    pub long: f64,
-}
+// #[derive(Serialize, Deserialize, Debug, Clone)]
+// pub struct Location {
+//     #[serde(rename = "Lat")]
+//     lat: f64,
+//
+//     #[serde(rename = "Long")]
+//     long: f64,
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Server {
     #[serde(rename = "EntryIP")]
     pub entry_ip: Ipv4Addr,
+    // #[serde(rename = "ExitIP")]
+    // pub exit_ip: Ipv4Addr,
 
-    #[serde(rename = "ExitIP")]
-    pub exit_ip: Ipv4Addr,
+    // #[serde(rename = "Domain")]
+    // pub domain: String,
 
-    #[serde(rename = "Domain")]
-    pub domain: String,
+    // #[serde(rename = "ID")]
+    // pub id: String,
 
-    #[serde(rename = "ID")]
-    pub id: String,
+    // #[serde(rename = "Label")]
+    // pub label: String,
 
-    #[serde(rename = "Label")]
-    pub label: String,
+    // #[serde(rename = "X25519PublicKey")]
+    // pub x25519_public_key: String,
 
-    #[serde(rename = "X25519PublicKey")]
-    pub x25519_public_key: String,
+    // #[serde(rename = "Generation")]
+    // pub generation: u8,
 
-    #[serde(rename = "Generation")]
-    pub generation: u8,
+    // #[serde(rename = "Status")]
+    // pub status: u8,
+    //
+    // #[serde(rename = "ServicesDown")]
+    // pub services_down: u8,
 
-    #[serde(rename = "Status")]
-    pub status: u8,
-
-    #[serde(rename = "ServicesDown")]
-    pub services_down: u8,
-
-    #[serde(rename = "ServicesDownReason")]
-    pub services_down_reason: Option<String>,
+    // #[serde(rename = "ServicesDownReason")]
+    // pub services_down_reason: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -89,39 +88,36 @@ pub struct LogicalServer {
     #[serde(rename = "Name")]
     pub name: String,
 
-    #[serde(rename = "EntryCountry")]
-    pub entry_country: Country,
-
+    // #[serde(rename = "EntryCountry")]
+    // pub entry_country: Country,
     #[serde(rename = "ExitCountry")]
     pub exit_country: Country,
 
-    #[serde(rename = "Domain")]
-    pub domain: String,
-
+    // #[serde(rename = "Domain")]
+    // pub domain: String,
     #[serde(rename = "Tier")]
     pub tier: u8,
 
     #[serde(rename = "Features")]
     pub features: Features,
 
-    #[serde(rename = "Region")]
-    pub region: Option<String>,
+    // #[serde(rename = "Region")]
+    // pub region: Option<String>,
 
-    #[serde(rename = "City")]
-    pub city: Option<String>,
-
+    // #[serde(rename = "City")]
+    // pub city: Option<String>,
     #[serde(rename = "Score")]
     pub score: f64,
 
-    #[serde(rename = "HostCountry")]
-    pub host_country: Option<Country>,
-
+    // #[serde(rename = "HostCountry")]
+    // pub host_country: Option<Country>,
     #[serde(rename = "ID")]
     pub id: String,
 
-    #[serde(rename = "Location")]
-    pub location: Location,
+    // #[serde(rename = "Location")]
+    // pub location: Location,
 
+    // TODO: Filter out servers where status is not OK
     #[serde(rename = "Status")]
     pub status: u8,
 
