@@ -381,4 +381,3 @@ pub enum Country {
     QA,
     MZ,
 }
-

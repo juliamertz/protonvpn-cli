@@ -8,6 +8,60 @@
 - [ ] Openvpn process not being killed if daemon is shut down before connection is established
 - [ ] Set up test suite
 
+## Installation
+
+### Cargo
+
+```sh
+cargo install --git https://github.com/juliamertz/protonvpn-rs --branch main
+```
+
+### Nix
+
+You can install/download the program with the nix package manager by running
+
+```sh
+nix run "github:juliamertz/protonvpn-rs?dir=nix"
+# or
+nix install "github:juliamertz/protonvpn-rs?dir=nix"
+```
+
+There is also a NixOS module included, a darwin module is planned.
+
+<details>
+  <summary>Example config</summary>
+
+```nix
+{ inputs, ... }: {
+  imports = [ inputs.protonvpn-rs.nixosModules.protonvpn ];
+
+  services.protonvpn = {
+    enable = true;
+    requiresops = true;
+    settings = {
+      credentials_path = "/run/secrets/openvpn_auth";
+      autostart_default = true;
+      default_select = "fastest";
+      default_protocol = "udp";
+      default_criteria = {
+        country = "nl";
+        features = [ "streaming" ];
+      };
+      killswitch = {
+        enable = false;
+        custom_rules = [
+          "-a input -s 192.168.0.100 -j accept"
+          "-a output -d 192.168.0.100 -j accept"
+          "-a input -p tcp -m tcp --dport 22 -j accept"
+        ];
+      };
+    };
+  };
+}
+```
+
+</details>
+
 ## Features
 
 ### Filtering servers
