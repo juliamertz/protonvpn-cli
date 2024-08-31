@@ -29,6 +29,7 @@ pub fn wait_for_file_and_read(path: &str) -> Result<String> {
             Ok(event) => {
                 if let EventKind::Create(_) | EventKind::Modify(_) = event?.kind {
                     if file_path.exists() {
+                        drop(watcher);
                         let content = fs::read_to_string(file_path)?;
                         return Ok(content);
                     }
@@ -36,6 +37,7 @@ pub fn wait_for_file_and_read(path: &str) -> Result<String> {
             }
             Err(_) => {
                 if file_path.exists() {
+                    drop(watcher);
                     let content = fs::read_to_string(file_path)?;
                     return Ok(content);
                 }
