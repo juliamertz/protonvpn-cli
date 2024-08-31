@@ -39,8 +39,8 @@ mod linux {
             "-P FORWARD DROP",                 // drop all forwarded traffic by default
             "-A OUTPUT -o lo -j ACCEPT",       // Allow all outgoing traffic to lo
             "-A INPUT -i lo -j ACCEPT",        // Allow all incoming traffic from lo
-            "-A OUTPUT -o {device} -j ACCEPT", // Allow all outgoing traffic through the specified network interface ({device})
-            "-A INPUT -i {device} -j ACCEPT", // Allow all incoming traffic through the specified network interface ({device})
+            "-A OUTPUT -o {device} -j ACCEPT", // Allow all outgoing traffic through the specified network interface
+            "-A INPUT -i {device} -j ACCEPT", // Allow all incoming traffic through the specified network interface
             "-A OUTPUT -o {device} -m state --state ESTABLISHED,RELATED -j ACCEPT", // Allow outgoing traffic through the tunnels interface
             "-A INPUT -i {device} -m state --state ESTABLISHED,RELATED -j ACCEPT" // Allow incoming traffic through the tunnels interface
         ];

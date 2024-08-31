@@ -65,6 +65,9 @@ in {
 
       killswitch = {
         enable = mkEnableOption (mdDoc "ProtonVPN service");
+        applyFirewallRules = mkEnableOption (mdDoc ''
+          Include system firewall rules as custom rules for the vpn killswitch
+        '');
         custom_rules = mkOption {
           type = types.nullOr (types.listOf types.str);
           default = null;
@@ -97,57 +100,11 @@ in {
       };
     };
   };
+
+  imports = [ ./config.nix ];
+
   config = {
     environment.systemPackages = [ protonvpn-rs ];
-
-    environment.etc."protonvpn-rs/config.ron".text = let
-      toStr = x:
-        if lib.isBool x then
-          if x then "true" else "false"
-        else
-          builtins.toString x;
-      pad = ident: lib.concatStrings (builtins.genList (_: "  ") ident);
-      br = "\n";
-
-      formatSection = n: key: value:
-        if builtins.isAttrs value then
-          formatStruct n key value
-        else
-          (pad n) + "${key}: ${toStr value},";
-      formatSections = n: attrs:
-        lib.concatStringsSep "\n"
-        (lib.mapAttrsToList (key: value: formatSection n key value) attrs);
-      formatStruct = n: name: attrs:
-        "${pad n}${name}: (${br}${formatSections (n + 1) attrs}${br}${pad n}),";
-
-      ron.format = attrs: "(${br}${formatSections 1 attrs}${br})";
-      ron.types = {
-        str = x: ''"${toStr x}"'';
-        option = x: if builtins.isNull x then "None" else "Some(${x})";
-        array = list:
-          if builtins.isNull list then
-            null
-          else
-            "[${lib.concatStringsSep ", " list}]";
-      };
-    in with cfg.settings;
-    with ron.types;
-    (ron.format {
-      inherit max_cache_age autostart_default default_select default_protocol;
-      credentials_path = option (str credentials_path);
-      update_resolv_conf_path = option (str update_resolv_conf_path);
-
-      default_criteria = with default_criteria; {
-        inherit tier max_load;
-        country = option country;
-        features = array features;
-      };
-
-      killswitch = with killswitch; {
-        inherit enable;
-        custom_rules = option (array (map str custom_rules));
-      };
-    });
 
     systemd.services.protonvpn-rs = lib.mkIf cfg.enable {
       description = "${serviceName} service";

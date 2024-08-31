@@ -1,5 +1,7 @@
 # Work in progress
 
+# Unofficial ProtonVPN cli for Linux & MacOS
+
 ## Todo / Bugs
 
 - [ ] Add notify feature for desktop notifications
@@ -7,6 +9,7 @@
 - [ ] Nix Darwin module
 - [ ] Openvpn process not being killed if daemon is shut down before connection is established
 - [ ] Set up test suite
+- [ ] Reset daemon state if openvpn process crashes or is stopped.
 
 ## Installation
 
@@ -37,22 +40,32 @@ There is also a NixOS module included, a darwin module is planned.
 
   services.protonvpn = {
     enable = true;
-    requireSops = true;
+    requireSops = true; # WIP
     settings = {
-      credentials_path = "/run/secrets/openvpn_auth";
+      # Path to file containing openvpn credentials for ProtonVPN
+      credentials_path = "/run/secrets/openvpn_creds";
+
+      # Settings the daemon should use when connecting to a server on startup
       autostart_default = true;
       default_select = "Fastest";
       default_protocol = "Udp";
       default_criteria = {
         country = "NL";
         features = [ "Streaming" ];
+        tier = "Premium";
+        max_load = 90;
       };
+
       killswitch = {
+        # Automatically enable the killswitch when the daemon starts
         enable = false;
+        # Copy firewall rules defined in your nixos configuration
+        applyFirewallRules = true;
+        # Extra iptables rules to append to the killswitch rules
         custom_rules = [
-          "-a input -s 192.168.0.100 -j accept"
-          "-a output -d 192.168.0.100 -j accept"
-          "-a input -p tcp -m tcp --dport 22 -j accept"
+          # Allow connections on your local network
+          # "-A INPUT -s 192.168.0.0/24 -j ACCEPT",
+          # "-A OUTPUT -d 192.168.0.0/24 -j ACCEPT",
         ];
       };
     };
