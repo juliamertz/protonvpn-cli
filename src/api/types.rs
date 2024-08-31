@@ -116,8 +116,6 @@ pub struct LogicalServer {
 
     // #[serde(rename = "Location")]
     // pub location: Location,
-
-    // TODO: Filter out servers where status is not OK
     #[serde(rename = "Status")]
     pub status: u8,
 

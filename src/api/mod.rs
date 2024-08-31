@@ -127,7 +127,12 @@ pub fn logicals() -> Result<LogicalServers> {
 
     let response = call_api("vpn/logicals")?;
     let data = serde_json::from_str::<ServerResponse>(response.as_str()).unwrap();
-    let logical_servers = LogicalServers::new(data.logical_servers);
+    let logical_servers = LogicalServers::new(
+        data.logical_servers
+            .into_iter()
+            .filter(|server| server.status == 1)
+            .collect(),
+    );
 
     cache::write(&logical_servers)?;
 
