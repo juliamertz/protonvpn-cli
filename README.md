@@ -37,15 +37,15 @@ There is also a NixOS module included, a darwin module is planned.
 
   services.protonvpn = {
     enable = true;
-    requiresops = true;
+    requireSops = true;
     settings = {
       credentials_path = "/run/secrets/openvpn_auth";
       autostart_default = true;
-      default_select = "fastest";
-      default_protocol = "udp";
+      default_select = "Fastest";
+      default_protocol = "Udp";
       default_criteria = {
-        country = "nl";
-        features = [ "streaming" ];
+        country = "NL";
+        features = [ "Streaming" ];
       };
       killswitch = {
         enable = false;
