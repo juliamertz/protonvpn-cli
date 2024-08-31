@@ -2,7 +2,6 @@ use super::*;
 use crate::{config, utils};
 use askama::Template;
 use clap::ValueEnum;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Display,
@@ -176,20 +175,17 @@ fn create_config(server: &LogicalServer, protocol: &Protocol) -> Result<Config> 
 pub fn parse_nic(log_file: File) -> Option<String> {
     let reader = BufReader::new(log_file);
 
-    #[cfg(target_os = "linux")]
-    let re = Regex::new(r"TUN/TAP device (.+) opened").unwrap();
-    #[cfg(target_os = "macos")]
-    let re = Regex::new(r"Opened utun device (.+)").unwrap();
+    reader.lines().map_while(Result::ok).find_map(|line| {
+        let mut parts = line.split(' ').collect::<Vec<_>>();
+        parts.drain(0..2); // remove date and timestamp
 
-    reader.lines().find_map(|line| {
-        if let Ok(line) = line {
-            if let Some(captures) = re.captures(&line) {
-                if let Some(device) = captures.get(1) {
-                    return Some(device.as_str().to_string());
-                }
-            }
+        match parts.as_slice() {
+            // Linux
+            ["TUN/TAP", "device", device, "opened"] => Some(device.to_string()),
+            // Macos
+            ["Opened", "utun", "device", device] => Some(device.to_string()),
+            _ => None,
         }
-        None
     })
 }
 

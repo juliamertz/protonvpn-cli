@@ -1209,7 +1209,6 @@ dependencies = [
  "pnet",
  "pretty_env_logger",
  "rand",
- "regex",
  "reqwest",
  "ron",
  "serde",
