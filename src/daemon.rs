@@ -33,7 +33,7 @@ pub struct ActiveServer {
     pub protocol: Protocol,
 }
 
-pub type SharedState<'a> = Rc<State<'a>>;
+pub type DaemonState<'a> = Rc<State<'a>>;
 pub struct State<'a> {
     pub servers: HashMap<&'a str, &'a LogicalServer>,
     pub active_server: Arc<RwLock<Option<ActiveServer>>>,
@@ -105,7 +105,7 @@ pub fn start_service() -> Result<()> {
 fn handle_socket_request(
     req: &Request,
     stream: &mut UnixStream,
-    state: &SharedState,
+    state: &DaemonState,
 ) -> Result<()> {
     match req {
         Request::Status => handle_status_request(stream, state)?,
@@ -119,7 +119,7 @@ fn handle_socket_request(
     Ok(())
 }
 
-fn handle_status_request(stream: &mut UnixStream, state: &SharedState) -> Result<()> {
+fn handle_status_request(stream: &mut UnixStream, state: &DaemonState) -> Result<()> {
     let res = match state.active_server.read().clone() {
         Some(active) => Response::Status(ServerStatus::Connected {
             pid: active.pid.to_owned(),
@@ -135,7 +135,7 @@ fn handle_status_request(stream: &mut UnixStream, state: &SharedState) -> Result
     Ok(())
 }
 
-fn handle_disconnect_request(state: &SharedState) -> Result<()> {
+fn handle_disconnect_request(state: &DaemonState) -> Result<()> {
     match state.active_server.read().clone() {
         Some(active) => client::openvpn::disconnect(&active.pid)?,
         _ => {
@@ -150,7 +150,7 @@ fn handle_disconnect_request(state: &SharedState) -> Result<()> {
     Ok(())
 }
 
-fn handle_connect_request(server_id: &str, protocol: &Protocol, state: &SharedState) -> Result<()> {
+fn handle_connect_request(server_id: &str, protocol: &Protocol, state: &DaemonState) -> Result<()> {
     match state.servers.get(server_id) {
         Some(logical_server) => {
             if let Some(active) = state.active_server.read().clone() {
@@ -194,7 +194,7 @@ fn handle_connect_request(server_id: &str, protocol: &Protocol, state: &SharedSt
     Ok(())
 }
 
-pub fn handle_stop_request(state: &SharedState) -> Result<()> {
+pub fn handle_stop_request(state: &DaemonState) -> Result<()> {
     log::info!("Stopping daemon");
 
     let server = state.active_server.read();
@@ -214,7 +214,7 @@ pub fn handle_stop_request(state: &SharedState) -> Result<()> {
     std::process::exit(0);
 }
 
-pub fn handle_killswitch_request(state: &SharedState, enable: &bool) -> Result<()> {
+pub fn handle_killswitch_request(state: &DaemonState, enable: &bool) -> Result<()> {
     log::debug!("Handling killswitch request, setting state to {enable}");
 
     match state.active_server.read().clone() {
@@ -279,7 +279,7 @@ fn bind_socket() -> Result<UnixListener> {
     UnixListener::bind(socket).map_err(|e| e.into())
 }
 
-fn spawn_signal_handler(state: &SharedState) -> Result<()> {
+fn spawn_signal_handler(state: &DaemonState) -> Result<()> {
     log::debug!("Spawning exit signal handler");
     let mut signals = Signals::new([SIGINT, SIGTERM])?;
     let state = state.active_server.clone();
