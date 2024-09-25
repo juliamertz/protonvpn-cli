@@ -108,9 +108,7 @@ in {
 
     systemd.services.protonvpn-rs = lib.mkIf cfg.enable {
       description = "${serviceName} service";
-      before = [ "network.target" ];
-      after = [ "network-pre.target" ]
-        ++ lib.optionals cfg.requireSops [ "decrypt-sops.service" ];
+      after = [ ] ++ lib.optionals cfg.requireSops [ "decrypt-sops.service" ];
 
       path = with pkgs; [ openvpn iptables ];
       serviceConfig = {
